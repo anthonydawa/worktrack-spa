@@ -1,25 +1,63 @@
-import logo from './logo.svg';
-import './App.css';
+import { ApolloClient, ApolloProvider, InMemoryCache } from "@apollo/client";
+import Template from "./template";
+import { BrowserRouter, Redirect, Route } from "react-router-dom";
+import Login from "./components/login/login.component";
+import { useEffect, useState } from "react";
+import { UserContext } from "./UserContext";
+import { auth, createUserProfileDocument } from "./firebase/firebase.utils";
 
-function App() {
+const client = new ApolloClient({
+  uri: "http://127.0.0.1:8000/graphql",
+  cache: new InMemoryCache(),
+});
+
+
+const App = () => {
+
+  const [value, setValue] = useState(null);
+  const [unsubscribeFromAuth, setUnsubscribeFromAuth] = useState(null);
+  // const user = useMemo(() => ({ value, setValue }), [value, setValue]);
+
+  useEffect(() => {
+    setUnsubscribeFromAuth = auth.onAuthStateChanged(
+      async (userAuth) => {
+        if (userAuth) {
+          const userRef = await createUserProfileDocument(userAuth);
+
+          userRef.onSnapshot((snapshot) => {
+            setValue({
+              currentUser: {
+                id: snapshot.id,
+                ...snapshot.data(),
+              },
+            });
+          });
+        } else {
+          setValue(userAuth);
+        }
+      }
+    );
+
+    return () => {
+      unsubscribeFromAuth();
+    };
+  }, [value]);
+
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
+    <ApolloProvider client={client}>
+      <BrowserRouter>
+        <UserContext.Provider value={value}>
+          <Route exact path="/" component={Login} />
+          <Route
+            path="/dashboard"
+            render={() =>
+              value ? <Redirect to="/"></Redirect> : <Template></Template>
+            }
+          />
+        </UserContext.Provider>
+      </BrowserRouter>
+    </ApolloProvider>
   );
-}
+};
 
 export default App;
